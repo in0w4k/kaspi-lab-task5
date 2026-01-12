@@ -1,0 +1,1 @@
+alter table t_products add column address varchar(255);

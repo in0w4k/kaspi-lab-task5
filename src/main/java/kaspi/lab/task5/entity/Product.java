@@ -22,4 +22,6 @@ public class Product {
 
     @Column(nullable = false)
     private Double price;
+
+    private String address;
 }
