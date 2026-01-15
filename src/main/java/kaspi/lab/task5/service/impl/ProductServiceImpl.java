@@ -57,6 +57,7 @@ public class ProductServiceImpl implements ProductService {
         Product existingProduct = productRep.findById(id).orElseThrow(() -> new RuntimeException("Product not found"));
         if (dto.getName() != null) existingProduct.setName(dto.getName());
         if (dto.getPrice() != null) existingProduct.setPrice(dto.getPrice());
+        if (dto.getAddress() != null) existingProduct.setAddress(dto.getAddress());
         Product updatedProduct = productRep.save(existingProduct);
         return productMapper.toDto(updatedProduct);
     }
