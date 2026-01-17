@@ -8,6 +8,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
 
 @RestController
 @RequiredArgsConstructor
@@ -16,8 +17,9 @@ public class ProductApi {
     private final ProductService productService;
 
     @GetMapping
-    public ResponseEntity<List<ProductDto>> getAllProducts() {
-        return new ResponseEntity<>(productService.getAllProducts(), HttpStatus.OK);
+    public CompletableFuture<ResponseEntity<List<ProductDto>>> getAllProducts() {
+        return productService.getAllProducts()
+                .thenApply(products -> new ResponseEntity<>(products, HttpStatus.OK));
     }
 
     @GetMapping("/{id}")

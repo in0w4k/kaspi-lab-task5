@@ -7,10 +7,12 @@ import kaspi.lab.task5.mapper.ProductMapper;
 import kaspi.lab.task5.rep.ProductRep;
 import kaspi.lab.task5.service.ProductService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
 
 @Service
 @RequiredArgsConstructor
@@ -26,11 +28,16 @@ public class ProductServiceImpl implements ProductService {
     }
 
     @Override
-    public List<ProductDto> getAllProducts() {
+    @Async("productExecutor")
+    public CompletableFuture<List<ProductDto>> getAllProducts() {
+        System.out.println("Fetching all products in thread: " + Thread.currentThread().getName());
+
         List<Product> products = productRep.findAll();
-        return products.stream()
+        List<ProductDto> dtos = products.stream()
                 .map(productMapper::toDto)
                 .toList();
+
+        return CompletableFuture.completedFuture(dtos);
     }
 
     @Override
