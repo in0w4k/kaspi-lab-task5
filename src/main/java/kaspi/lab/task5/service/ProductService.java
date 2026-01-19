@@ -1,14 +1,13 @@
 package kaspi.lab.task5.service;
 
 import kaspi.lab.task5.dto.ProductDto;
-
-import java.util.List;
-import java.util.concurrent.CompletableFuture;
+import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
 
 public interface ProductService {
-    ProductDto getProductById(Long id);
-    CompletableFuture<List<ProductDto>> getAllProducts();
-    ProductDto createProduct(ProductDto dto);
-    ProductDto updateProduct(Long id, ProductDto dto);
-    void deleteProduct(Long id);
+    Mono<ProductDto> getProductById(Long id);
+    Flux<ProductDto> getAllProducts();
+    Mono<ProductDto> createProduct(ProductDto dto);
+    Mono<ProductDto> updateProduct(Long id, ProductDto dto);
+    Mono<Void> deleteProduct(Long id);
 }

@@ -2,76 +2,72 @@ package kaspi.lab.task5.service.impl;
 
 import kaspi.lab.task5.dto.DeliveryRequest;
 import kaspi.lab.task5.dto.ProductDto;
-import kaspi.lab.task5.entity.Product;
 import kaspi.lab.task5.mapper.ProductMapper;
 import kaspi.lab.task5.rep.ProductRep;
 import kaspi.lab.task5.service.ProductService;
 import lombok.RequiredArgsConstructor;
-import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
-import org.springframework.web.client.RestTemplate;
-
-import java.util.List;
-import java.util.concurrent.CompletableFuture;
+import org.springframework.web.reactive.function.client.WebClient;
+import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
 
 @Service
 @RequiredArgsConstructor
 public class ProductServiceImpl implements ProductService {
     private final ProductRep productRep;
     private final ProductMapper productMapper;
-    private final RestTemplate restTemplate;
+    private final WebClient webClient;
 
     @Override
-    public ProductDto getProductById(Long id) {
-        Product product = productRep.findById(id).orElseThrow(() -> new RuntimeException("Product not found"));
-        return productMapper.toDto(product);
-    }
-
-    @Override
-    @Async("productExecutor")
-    public CompletableFuture<List<ProductDto>> getAllProducts() {
-        System.out.println("Fetching all products in thread: " + Thread.currentThread().getName());
-
-        List<Product> products = productRep.findAll();
-        List<ProductDto> dtos = products.stream()
+    public Mono<ProductDto> getProductById(Long id) {
+        return productRep.findById(id)
                 .map(productMapper::toDto)
-                .toList();
-
-        return CompletableFuture.completedFuture(dtos);
+                .switchIfEmpty(Mono.error(new RuntimeException("Product not found")));
     }
 
     @Override
-    public ProductDto createProduct(ProductDto dto) {
-        Product product = productMapper.toEntity(dto);
-        Product savedProduct = productRep.save(product);
-
-        if (savedProduct.getAddress() != null) {
-            String deliveryUrl = "http://localhost:8081/delivery";
-            DeliveryRequest request = new DeliveryRequest();
-            request.setProductId(savedProduct.getId());
-            request.setAddress(savedProduct.getAddress());
-            try {
-                restTemplate.postForObject(deliveryUrl, request, String.class);
-            } catch (Exception e) {
-                throw new RuntimeException("Failed to create delivery: " + e.getMessage());
-            }
-        }
-        return productMapper.toDto(savedProduct);
+    public Flux<ProductDto> getAllProducts() {
+        return productRep.findAll()
+                .map(productMapper::toDto);
     }
 
     @Override
-    public ProductDto updateProduct(Long id, ProductDto dto) {
-        Product existingProduct = productRep.findById(id).orElseThrow(() -> new RuntimeException("Product not found"));
-        if (dto.getName() != null) existingProduct.setName(dto.getName());
-        if (dto.getPrice() != null) existingProduct.setPrice(dto.getPrice());
-        if (dto.getAddress() != null) existingProduct.setAddress(dto.getAddress());
-        Product updatedProduct = productRep.save(existingProduct);
-        return productMapper.toDto(updatedProduct);
+    public Mono<ProductDto> createProduct(ProductDto dto) {
+        return productRep.save(productMapper.toEntity(dto))
+                .flatMap(savedProduct -> {
+                    if (savedProduct.getAddress() != null) {
+                        DeliveryRequest request = new DeliveryRequest();
+                        request.setProductId(savedProduct.getId());
+                        request.setAddress(savedProduct.getAddress());
+                        return webClient.post()
+                                .uri("http://localhost:8081/delivery")
+                                .bodyValue(request)
+                                .retrieve()
+                                .bodyToMono(String.class)
+                                .thenReturn(productMapper.toDto(savedProduct))
+                                .onErrorResume(e -> Mono.error(new RuntimeException("Failed to create delivery " + e.getMessage())));
+                    }
+                    return Mono.just(productMapper.toDto(savedProduct));
+                });
     }
 
     @Override
-    public void deleteProduct(Long id) {
-        Product existingProduct = productRep.findById(id).orElseThrow(() -> new RuntimeException("Product not found"));
-        productRep.delete(existingProduct);
+    public Mono<ProductDto> updateProduct(Long id, ProductDto dto) {
+        return productRep.findById(id)
+                .switchIfEmpty(Mono.error(new RuntimeException("Product not found")))
+                .flatMap(existingProduct -> {
+                    if (dto.getName() != null) existingProduct.setName(dto.getName());
+                    if (dto.getPrice() != null) existingProduct.setPrice(dto.getPrice());
+                    if (dto.getAddress() != null) existingProduct.setAddress(dto.getAddress());
+                    return productRep.save(existingProduct);
+                })
+                .map(productMapper::toDto);
+    }
+
+    @Override
+    public Mono<Void> deleteProduct(Long id) {
+        return productRep.findById(id)
+                .switchIfEmpty(Mono.error(new RuntimeException("Product not found")))
+                .flatMap(productRep::delete);
     }
 }
